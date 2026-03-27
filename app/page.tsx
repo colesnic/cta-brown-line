@@ -28,6 +28,7 @@ export default function Home() {
   const [trains, setTrains]         = useState<Train[]>([]);
   const [incidents, setIncidents]   = useState<Incident[]>([]);
   const [selectedRn, setSelectedRn] = useState<string | null>(null);
+  const [selectedCar, setSelectedCar] = useState<string>('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [apiError, setApiError]     = useState<string | null>(null);
   const [tab, setTab]               = useState<'report' | 'feed'>('report');
@@ -59,8 +60,15 @@ export default function Home() {
   }, [fetchTrains, fetchIncidents]);
 
   function handleSelectTrain(rn: string) {
-    setSelectedRn(prev => prev === rn ? null : rn);
-    // Switch to report tab when user taps a train
+    setSelectedRn(prev => {
+      if (prev === rn) { setSelectedCar(''); return null; }
+      return rn;
+    });
+    setTab('report');
+  }
+
+  function handleSelectCar(car: string) {
+    setSelectedCar(car);
     setTab('report');
   }
 
@@ -137,6 +145,16 @@ export default function Home() {
           onSelectTrain={handleSelectTrain}
         />
 
+        {/* ── Car viewer (only when a train is selected) ── */}
+        {selectedRn && (
+          <TrainCarViewer
+            selectedRn={selectedRn}
+            incidents={incidents}
+            selectedCar={selectedCar}
+            onSelectCar={handleSelectCar}
+          />
+        )}
+
         {/* ── Tab bar ── */}
         <div className="flex rounded-xl bg-zinc-900 border border-zinc-800 p-1 gap-1">
           <button
@@ -170,6 +188,7 @@ export default function Home() {
         {tab === 'report' && (
           <IncidentForm
             prefillRn={selectedRn ?? ''}
+            prefillCar={selectedCar}
             onSubmitted={handleSubmitted}
           />
         )}
@@ -178,6 +197,111 @@ export default function Home() {
           <FeedView incidents={recentFeed} trains={trains} />
         )}
       </main>
+    </div>
+  );
+}
+
+/* ─── Car viewer ───────────────────────────────────────────────── */
+
+const CAR_COUNT   = 8;
+const GOOD_TYPES  = new Set(['Clean', 'Quiet', 'Safe', 'Empty', 'On Time', 'Working']);
+
+function carSentiment(incs: Incident[]): 'good' | 'bad' | 'neutral' {
+  if (incs.length === 0) return 'neutral';
+  let good = 0, bad = 0;
+  for (const inc of incs) {
+    if (GOOD_TYPES.has(inc.type)) good++; else bad++;
+  }
+  if (good > bad) return 'good';
+  if (bad > good) return 'bad';
+  return 'neutral';
+}
+
+function TrainCarViewer({
+  selectedRn, incidents, selectedCar, onSelectCar,
+}: {
+  selectedRn:  string;
+  incidents:   Incident[];
+  selectedCar: string;
+  onSelectCar: (car: string) => void;
+}) {
+  const trainIncs = incidents.filter(i => i.runNumber === selectedRn && i.carNumber !== '');
+
+  const cars = Array.from({ length: CAR_COUNT }, (_, i) => {
+    const carNum = String(i + 1);
+    const carIncs = trainIncs.filter(inc => inc.carNumber === carNum);
+    const sentiment = carSentiment(carIncs);
+    let good = 0, bad = 0;
+    for (const inc of carIncs) {
+      if (GOOD_TYPES.has(inc.type)) good++; else bad++;
+    }
+    return { carNum, sentiment, good, bad };
+  });
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-zinc-500 px-0.5">Tap a car to report on it</p>
+      <div className="overflow-x-auto -mx-5 px-5">
+        <div className="flex items-stretch gap-0 pb-1" style={{ width: 'max-content' }}>
+          {/* Locomotive cap */}
+          <div className="flex items-center pr-1 flex-shrink-0">
+            <div className="w-3 h-12 rounded-l-full bg-zinc-700 border border-zinc-600" />
+          </div>
+
+          {cars.map(({ carNum, sentiment, good, bad }, i) => {
+            const isSelected = selectedCar === carNum;
+            const bg     = sentiment === 'good' ? 'bg-green-950  border-green-700'
+                         : sentiment === 'bad'  ? 'bg-red-950    border-red-700'
+                         :                        'bg-zinc-900   border-zinc-700';
+            const numCol = sentiment === 'good' ? 'text-green-300'
+                         : sentiment === 'bad'  ? 'text-red-300'
+                         :                        'text-zinc-300';
+
+            return (
+              <div key={carNum} className="flex items-center flex-shrink-0">
+                {/* Coupler between cars */}
+                {i > 0 && (
+                  <div className="flex flex-col items-center gap-0.5 px-0.5">
+                    <div className="w-3 h-1 bg-zinc-600 rounded-sm" />
+                    <div className="w-1 h-2 bg-zinc-700" />
+                    <div className="w-3 h-1 bg-zinc-600 rounded-sm" />
+                  </div>
+                )}
+
+                <button
+                  onClick={() => onSelectCar(carNum)}
+                  className={`relative flex-shrink-0 w-14 rounded-lg border-2 flex flex-col items-center justify-between py-2 transition-all active:scale-95 ${bg} ${isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-zinc-950' : ''}`}
+                  style={{ height: 84 }}
+                >
+                  {/* Windows row */}
+                  <div className="flex gap-1">
+                    <div className="w-2 h-1.5 rounded-sm bg-zinc-600 opacity-60" />
+                    <div className="w-2 h-1.5 rounded-sm bg-zinc-600 opacity-60" />
+                    <div className="w-2 h-1.5 rounded-sm bg-zinc-600 opacity-60" />
+                  </div>
+
+                  {/* Car number */}
+                  <span className={`text-xl font-bold leading-none ${numCol}`}>{carNum}</span>
+
+                  {/* Vote tally */}
+                  <div className="flex gap-1 items-center h-4">
+                    {good > 0 && <span className="text-green-400 text-[10px] font-semibold">+{good}</span>}
+                    {bad  > 0 && <span className="text-red-400   text-[10px] font-semibold">−{bad}</span>}
+                    {good === 0 && bad === 0 && (
+                      <span className="text-zinc-600 text-[10px]">—</span>
+                    )}
+                  </div>
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Tail cap */}
+          <div className="flex items-center pl-1 flex-shrink-0">
+            <div className="w-3 h-12 rounded-r-full bg-zinc-700 border border-zinc-600" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

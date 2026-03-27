@@ -5,12 +5,9 @@ import type { Incident } from './BrownLineMap';
 
 // Each pair: left = good (green), right = bad (red)
 export const PAIRS = [
-  { good: 'Clean',   bad: 'Dirty'   },
   { good: 'Quiet',   bad: 'Loud'    },
   { good: 'Safe',    bad: 'Unsafe'  },
-  { good: 'Empty',   bad: 'Crowded' },
-  { good: 'On Time', bad: 'Delayed' },
-  { good: 'Working', bad: 'Broken'  },
+  { good: 'Clean',   bad: 'Dirty'   },
 ] as const;
 
 export type IncidentType = typeof PAIRS[number]['good'] | typeof PAIRS[number]['bad'];
@@ -24,13 +21,14 @@ export function typePolarity(t: string): 'good' | 'bad' | null {
 }
 
 type Props = {
-  prefillRn?: string;
+  prefillRn?:  string;
+  prefillCar?: string;
   onSubmitted: (incident: Incident) => void;
 };
 
-export default function IncidentForm({ prefillRn = '', onSubmitted }: Props) {
+export default function IncidentForm({ prefillRn = '', prefillCar = '', onSubmitted }: Props) {
   const [runNumber, setRunNumber] = useState(prefillRn);
-  const [carNumber, setCarNumber] = useState('');
+  const [carNumber, setCarNumber] = useState(prefillCar);
   const [type, setType]           = useState<string>('');
   const [summary, setSummary]     = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -40,6 +38,10 @@ export default function IncidentForm({ prefillRn = '', onSubmitted }: Props) {
   useEffect(() => {
     if (prefillRn) setRunNumber(prefillRn);
   }, [prefillRn]);
+
+  useEffect(() => {
+    if (prefillCar) setCarNumber(prefillCar);
+  }, [prefillCar]);
 
   const wordCount = summary.trim().split(/\s+/).filter(Boolean).length;
   const canSubmit = runNumber.trim() && type && wordCount === 2 && !submitting;
