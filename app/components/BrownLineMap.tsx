@@ -120,10 +120,18 @@ function getStXY(i: number): { x: number; y: number } {
   }
 }
 
-// ── Incident dot colour ───────────────────────────────────────────────────
+// ── Incident sentiment ────────────────────────────────────────────────────
 const GOOD_TYPES = new Set(['Clean', 'Quiet', 'Safe', 'Empty', 'On Time', 'Working']);
-function incDotColor(type: string): string {
-  return GOOD_TYPES.has(type) ? '#22c55e' : '#ef4444';
+
+function trainSentiment(incs: Incident[]): 'good' | 'bad' | 'neutral' {
+  if (incs.length === 0) return 'neutral';
+  let good = 0, bad = 0;
+  for (const inc of incs) {
+    if (GOOD_TYPES.has(inc.type)) good++; else bad++;
+  }
+  if (good > bad) return 'good';
+  if (bad > good) return 'bad';
+  return 'neutral';
 }
 
 // ── Train 2-D position ────────────────────────────────────────────────────
@@ -336,15 +344,11 @@ export default function BrownLineMap({ trains, incidents, selectedRn, onSelectTr
         if (!pos) return null;
 
         const trainIncs = incidentMap[train.rn] ?? [];
-        const hasInc    = trainIncs.length > 0;
-        const isDly     = train.isDly === '1';
+        const sentiment = trainSentiment(trainIncs);
         const isSel     = selectedRn === train.rn;
-
-        let fill   = '#ffffff';
-        let stroke = '#6b3a1f';
-        let tFill  = '#6b3a1f';
-        if (isDly)  { fill = '#f59e0b'; stroke = '#b45309'; tFill = '#7c3300'; }
-        if (hasInc) { fill = '#dc2626'; stroke = '#991b1b'; tFill = '#ffffff'; }
+        const dotColor  = sentiment === 'good' ? '#22c55e'
+                        : sentiment === 'bad'  ? '#ef4444'
+                        : null;
 
         return (
           <g
@@ -355,26 +359,19 @@ export default function BrownLineMap({ trains, incidents, selectedRn, onSelectTr
           >
             {isSel && (
               <circle cx={0} cy={0} r={TRAIN_R + 5}
-                fill="none" stroke="#ffffff" strokeWidth={2} opacity={0.5}
+                fill="none" stroke="#ffffff" strokeWidth={2} opacity={0.6}
               />
             )}
             <circle cx={0} cy={0} r={HIT_R} fill="transparent" />
-            <circle cx={0} cy={0} r={TRAIN_R} fill={fill} stroke={stroke} strokeWidth={2} />
-            <text x={0} y={4} textAnchor="middle" fontSize={8} fontWeight="bold" fill={tFill}>
+            <circle cx={0} cy={0} r={TRAIN_R} fill="#ffffff" stroke={isSel ? '#e4e4e7' : '#a78570'} strokeWidth={2} />
+            <text x={0} y={4} textAnchor="middle" fontSize={8} fontWeight="bold" fill="#6b3a1f">
               {train.rn}
             </text>
-            {hasInc && (
+            {dotColor && (
               <circle cx={9} cy={-9} r={4.5}
-                fill={incDotColor(trainIncs[0].type)}
-                stroke="#1c1917" strokeWidth={1}
+                fill={dotColor} stroke="#1c1917" strokeWidth={1}
               />
             )}
-            {isSel && trainIncs.length > 0 && trainIncs.slice(-2).map((inc, j) => (
-              <text key={inc.id}
-                x={TRAIN_R + 6} y={4 + j * 14}
-                fontSize={9} fill="#fca5a5"
-              >{inc.summary}</text>
-            ))}
           </g>
         );
       })}
